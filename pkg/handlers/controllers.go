@@ -32,6 +32,7 @@ type ControllersHandler struct {
 	stopCh           chan struct{}
 	isStopped        bool
 	portConfig       *port.IntegrationAppConfig
+	skipIntegration  bool
 }
 
 type FullResyncResults struct {
@@ -94,6 +95,7 @@ func NewControllersHandler(exporterConfig *port.Config, portConfig *port.Integra
 		portClient:       portClient,
 		stopCh:           signal.SetupSignalHandler(),
 		portConfig:       portConfig,
+		skipIntegration:  exporterConfig.SkipIntegration,
 	}
 
 	return controllersHandler
@@ -230,7 +232,7 @@ func syncController(controller *k8s.Controller, c *ControllersHandler, eventLogg
 	initialSyncResult := controller.RunInitialSync(eventLogger)
 	eventLogger.Infow(fmt.Sprintf("Done full initial resync, starting live events sync for resource '%s'", controller.Resource.Kind))
 	controller.RunEventsSync(1, eventLogger, c.stopCh)
-	if len(initialSyncResult.RawDataExamples) > 0 && !config.ApplicationConfig.SkipIntegration {
+	if len(initialSyncResult.RawDataExamples) > 0 && !c.skipIntegration {
 		err := integration.PostIntegrationKindExample(c.portClient, c.stateKey, controller.Resource.Kind, initialSyncResult.RawDataExamples)
 		if err != nil {
 			eventLogger.Warnw(fmt.Sprintf("failed to post integration kind example: %s", err.Error()))
